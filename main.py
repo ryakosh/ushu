@@ -1,19 +1,18 @@
 from fastapi import FastAPI, HTTPException
 from hashids import Hashids
-from peewee import OperationalError
 
-import configs
-from models import db, Url
+import cfg
+from models import db, UrlModel
 from resps import ShortenedUrlRes, ExpandedUrlRes
 from reqs import ShortenUrlReq, ExpandUrlReq
 
 app = FastAPI()
 with db:
-    db.create_tables([Url])
+    db.create_tables([UrlModel])
 
 hids = Hashids(
-    salt=configs.USHU_HASHIDS_SALT,
-    min_length=configs.USHU_HASHIDS_MINLEN)
+    salt=cfg.USHU_HASHIDS_SALT,
+    min_length=cfg.USHU_HASHIDS_MINLEN)
 
 @app.on_event("startup")
 def startup():
@@ -26,15 +25,19 @@ def shutdown():
 
 @app.post('/shorten')
 async def shorten(req: ShortenUrlReq): 
-    model = Url.create(url=req.url) 
-    res = ShortenedUrlRes(shortened=hids.encode(model.id))
+    """Shortens a fully qualified URL to an alphanumeric string."""
+
+    urlmod = UrlModel.create(url=req.url) 
+    res = ShortenedUrlRes(shortened=hids.encode(urlmod.id))
     return res
 
 @app.get('/expand')
 async def expand(req: ExpandUrlReq):
-    uid = hids.decode(req.short_url)
-    if uid:
-        url = Url.get(hids.decode(req.short_url))
-        if url:
-            return ExpandedUrlRes(expanded=url.url)
+    """Expands or resolves a shortened url to it's original form."""
+
+    urlmod_id = hids.decode(req.short_url)
+    if urlmod_id:
+        urlmod = UrlModel.get(urlmod_id)
+        if urlmod:
+            return ExpandedUrlRes(expanded=urlmod.url)
     return HTTPException(status_code=404) 
